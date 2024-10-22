@@ -222,7 +222,6 @@ class ApiRouter {
     this.router.get('/authors/:id/combined_alias', AuthorController.middleware.bind(this), AuthorController.getCombinedAlias.bind(this))
     this.router.post('/authors/:id/combined_alias', AuthorController.middleware.bind(this), AuthorController.addOriginalAuthors.bind(this))
     this.router.post('/authors/:id/make_alias', AuthorController.middleware.bind(this), AuthorController.makeAlias.bind(this))
-
     this.router.post('/authors/:id/createNew', AuthorController.middleware.bind(this), AuthorController.createNew.bind(this))
 
     //

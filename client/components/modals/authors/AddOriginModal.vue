@@ -85,7 +85,7 @@ export default {
         }
 
         console.log('Final Author IDs:', authorIds)
-        const response = await this.$axios.post(`/api/authors/${this.author.id}/combined_alias`, {
+        await this.$axios.post(`/api/authors/${this.author.id}/combined_alias`, {
           originalAuthors: authorIds
         })
 

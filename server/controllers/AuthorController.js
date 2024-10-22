@@ -586,7 +586,6 @@ class AuthorController {
     }
   }
 
-
   /**
    * POST: api/authors/:id/combined_alias
    *
@@ -597,46 +596,101 @@ class AuthorController {
     try {
       const authorId = req.params.id
       const author = await Database.authorModel.findByPk(authorId)
+
       if (!author) {
         return res.status(404).send('Author not found')
       }
 
-      const { originalAuthors } = req.body
-      if (!originalAuthors) {
-        return res.status(400).json({ error: 'Missing request body' })
+      const { originalAuthors } = req.body;
+      if (!originalAuthors || !Array.isArray(originalAuthors)) {
+        return res.status(400).json({ error: 'Missing or invalid request body' })
       }
 
-      if (author.is_alias_of == null && originalAuthors.length === 1) {
-        await author.update({is_alias_of: originalAuthors[0]})
-      }
+      const result = { success: [], failed: [] }
 
-      if(author.is_alias_of !== null && originalAuthors.length > 1) {
-        if (author.is_alias_of !== 0) {
-          await Database.authorCombinedAliasModel.create({
-            authorId: author.is_alias_of,
-            aliasId: author.id
+      const handleAliasCreation = async () => {
+        for (let originalAuthorId of originalAuthors) {
+          const originalAuthor = await Database.authorModel.findByPk(originalAuthorId)
+
+          if (originalAuthor && originalAuthor.is_alias_of) {
+            result.failed.push({
+              authorId: originalAuthorId,
+              message: `${originalAuthor.name} is an alias of another author.`
+            });
+            continue
+          }
+
+          const existingRecord = await Database.authorCombinedAliasModel.findOne({
+            where: { authorId: originalAuthorId, aliasId: authorId }
           })
-          await author.update({is_alias_of: 0})
-        }
 
-        for (let i = 0; i < originalAuthors.length; i++) {
-          let originalAuthorId = originalAuthors[i]
-          let originalAuthor = await Database.authorModel.findByPk(originalAuthorId)
-
-          if (originalAuthors.is_alias_of) {
-            return res.status(409).json({ message: `${originalAuthor.name} is an alias of other author.` })
+          if (existingRecord) {
+            continue
           }
 
           await Database.authorCombinedAliasModel.create({
             authorId: originalAuthorId,
             aliasId: authorId,
             createdAt: new Date()
+          });
+
+          result.success.push({
+            authorId: originalAuthorId,
+            message: 'Alias created successfully.'
+          });
+        }
+      };
+
+      if (author.is_alias_of === null) {
+        if (originalAuthors.length === 1) {
+          await author.update({ is_alias_of: originalAuthors[0] })
+          result.success.push({
+            authorId: originalAuthors[0],
+            message: 'Author successfully set as alias.'
           })
+        } else if (originalAuthors.length > 1) {
+          await author.update({is_alias_of: 0})
+          await handleAliasCreation()
         }
       }
-      return res.status(200).json({ message: 'Successfully add original author' })
+
+      else if (author.is_alias_of !== 0) {
+        const existingRecord = await Database.authorCombinedAliasModel.findOne({
+          where: { authorId: author.is_alias_of, aliasId: author.id }
+        })
+
+        if (!existingRecord) {
+          await Database.authorCombinedAliasModel.create({
+            authorId: author.is_alias_of,
+            aliasId: author.id
+          })
+        }
+
+        await author.update({ is_alias_of: 0 });
+        result.success.push({
+          authorId: author.is_alias_of,
+          message: 'Author successfully merged with existing alias.'
+        })
+      }
+
+      else if (author.is_alias_of === 0) {
+        await handleAliasCreation()
+      }
+
+      if (result.failed.length > 0) {
+        return res.status(409).json({
+          message: 'Some authors could not be processed.',
+          result
+        })
+      }
+
+      return res.status(200).json({
+        message: 'Successfully added original authors.',
+        result
+      })
+
     } catch (error) {
-      res.status(500).send('Internal Server Error')
+      return res.status(500).send('Internal Server Error')
     }
   }
 

@@ -165,6 +165,10 @@ export default {
   padding: 20px;
 }
 
+.author-info {
+  max-width: 200px;
+}
+
 .modal-actions {
   text-align: center;
   margin-top: auto;
